@@ -79,6 +79,25 @@ USER_AGENT = (
 UNCHECKED_PATTERN = re.compile(r"^- \[ \] (https?://\S+)\s*$")
 IMG_PATTERN = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
 
+# Domains known to block plain HTTP fetchers (auth walls, aggressive
+# anti-bot, or JS-only rendering). Skip trafilatura entirely and mark
+# the URL for agent-driven Playwright MCP fallback.
+WALLED_DOMAINS = frozenset({
+    "x.com",
+    "twitter.com",
+    "mobile.twitter.com",
+    "threads.net",
+    "linkedin.com",
+    "www.linkedin.com",
+    "facebook.com",
+    "www.facebook.com",
+    "m.facebook.com",
+    "instagram.com",
+    "www.instagram.com",
+})
+
+PLAYWRIGHT_HINT = "try playwright"
+
 
 # --- Core operations --------------------------------------------------------
 
@@ -105,6 +124,12 @@ def find_unchecked_entries(inbox_text: str) -> list[InboxEntry]:
 def is_pdf_url(url: str) -> bool:
     """Heuristic: URL path ends in .pdf."""
     return Path(urlparse(url).path).suffix.lower() == ".pdf"
+
+
+def is_walled(url: str) -> bool:
+    """Preflight check: URL host is in the walled-domain list."""
+    host = urlparse(url).netloc.lower()
+    return host in WALLED_DOMAINS
 
 
 def slug_from(url: str, title: str | None) -> str:
@@ -152,7 +177,7 @@ def fetch_html(url: str, web_dir: Path) -> FetchResult:
     downloaded = trafilatura.fetch_url(url)
     if not downloaded:
         return FetchResult(url=url, ok=False, kind="failed",
-                           reason="fetch returned empty (network / 403 / paywall)")
+                           reason=f"fetch returned empty (network / 403 / paywall) — {PLAYWRIGHT_HINT}")
 
     result = trafilatura.extract(
         downloaded,
@@ -164,7 +189,7 @@ def fetch_html(url: str, web_dir: Path) -> FetchResult:
     )
     if not result or not result.strip():
         return FetchResult(url=url, ok=False, kind="failed",
-                           reason="extraction empty (likely paywall or JS-rendered)")
+                           reason=f"extraction empty (likely paywall or JS-rendered) — {PLAYWRIGHT_HINT}")
 
     meta = trafilatura.extract_metadata(downloaded)
     title = getattr(meta, "title", None) if meta else None
@@ -326,6 +351,12 @@ def process_vault(vault: Path, dry_run: bool = False) -> int:
         print(f"\n→ {e.url}")
         if is_pdf_url(e.url):
             r = fetch_pdf(e.url, papers_dir)
+        elif is_walled(e.url):
+            host = urlparse(e.url).netloc.lower()
+            r = FetchResult(
+                url=e.url, ok=False, kind="failed",
+                reason=f"walled domain ({host}) — {PLAYWRIGHT_HINT}",
+            )
         else:
             r = fetch_html(e.url, web_dir)
         results.append(r)

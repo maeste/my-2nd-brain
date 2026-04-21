@@ -27,7 +27,8 @@ vault-bundle/
 ├── commands/
 │   ├── save.md           /save
 │   ├── view.md           /view
-│   └── reflect.md        /reflect
+│   ├── reflect.md        /reflect
+│   └── forget.md         /forget
 └── docs/examples/
     ├── research-example.md
     └── mealplan-example.md
@@ -106,8 +107,14 @@ pip install matplotlib
 
 **`python: command not found`** → install Python 3.10+.
 
-**Inbox fetcher fails on some URLs** → likely paywall or JS-rendered
-content. Use Obsidian Web Clipper manually as fallback.
+**Inbox fetcher fails on some URLs** → likely paywall, JS-rendered, or
+a walled domain (X/Twitter, LinkedIn, Threads, Facebook, Instagram).
+The fetcher marks these `⚠ ... — try playwright` and leaves them
+unchecked. The agent can then fetch them interactively via the
+Playwright MCP (one URL at a time, with your confirmation). See the
+*Playwright fallback* section in `skills/inbox-fetcher/SKILL.md`.
+Obsidian Web Clipper remains a manual fallback if Playwright MCP is
+unavailable.
 
 **Linter flags many orphan pages early on** → expected. Orphan check
 becomes meaningful when the wiki has >50 pages. Views are

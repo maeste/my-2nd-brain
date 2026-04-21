@@ -1,6 +1,6 @@
 ---
 name: inbox-fetcher
-description: Processes a queue of URLs listed in inbox.md for a second brain vault, downloading each page as clean markdown in raw/web/<slug>/index.md with images in an assets/ subdirectory. Use this skill whenever the user mentions "inbox", "fetch", "process links", "scrape URLs", "download articles", or adds URLs to inbox.md. Run this BEFORE any ingest operation so the agent has clean raw files to work from. Handles HTML articles via trafilatura, direct PDF downloads, and per-URL failures (paywalls, JS-rendered pages, timeouts) gracefully without blocking the rest of the queue.
+description: Processes a queue of URLs listed in inbox.md for a second brain vault, downloading each page as clean markdown in raw/web/<slug>/index.md with images in an assets/ subdirectory. Use this skill whenever the user mentions "inbox", "fetch", "process links", "scrape URLs", "download articles", or adds URLs to inbox.md. Run this BEFORE any ingest operation so the agent has clean raw files to work from. Handles HTML articles via trafilatura, direct PDF downloads, and per-URL failures (paywalls, JS-rendered pages, timeouts) gracefully without blocking the rest of the queue. Walled domains (X/Twitter, LinkedIn, Threads, Facebook, Instagram) are flagged for an agent-driven Playwright MCP fallback instead of being attempted with trafilatura.
 ---
 
 # Inbox Fetcher
@@ -103,11 +103,40 @@ If a dependency is missing, the script prints a clear install command and exits 
 
 ## Edge cases
 
-- **Paywall / 403 / login wall.** Extraction returns empty. URL marked `⚠ extraction failed` and left unchecked. Use Obsidian Web Clipper manually as fallback.
-- **JS-rendered SPA.** Same as above. No headless browser fallback (out of scope).
+- **Walled domain (preflight).** Hosts in `WALLED_DOMAINS` (X/Twitter, LinkedIn, Threads, Facebook, Instagram) are skipped upfront — trafilatura would fail anyway. Marked `⚠ walled domain (<host>) — try playwright`. Agent follows up with the Playwright MCP fallback (see below).
+- **Paywall / 403 / login wall (non-walled host).** Extraction returns empty. Marked `⚠ extraction empty (likely paywall or JS-rendered) — try playwright`. Same Playwright fallback applies.
+- **JS-rendered SPA.** Same as above — `try playwright` hint.
 - **Very large PDFs (>50 MB).** Downloaded anyway, prints a warning.
 - **Duplicate URL.** If already in "Processed", skipped with a message. Un-check manually to force re-fetch.
 - **Network timeout.** Per-request timeout is 20s for HTML, 60s for PDFs. Failures don't block the queue.
+
+## Playwright fallback
+
+Any URL marked `⚠ ... — try playwright` in inbox.md is a hand-off from the script to the agent. The script never calls a browser; the agent uses the Playwright MCP (`mcp__plugin_playwright_playwright__browser_*`) interactively, one URL at a time.
+
+**Protocol per URL:**
+
+1. **Confirm with the user** before fetching. Never batch-process walled URLs unattended.
+2. Navigate with `browser_navigate` to the URL.
+3. If auth is required and the user is logged in (persistent profile), proceed. Otherwise stop and report — don't attempt to bypass auth.
+4. Use `browser_snapshot` to get the accessibility tree, or `browser_evaluate` to extract the article/tweet text from the DOM. For X/Twitter threads, collect the full thread, not just the root post.
+5. Generate a slug (title for articles; `<handle>-<tweet-id>` for X/Twitter).
+6. Write `raw/web/<slug>/index.md` with frontmatter:
+   ```yaml
+   ---
+   source_url: <url>
+   title: <inferred or first-line-of-post>
+   author: <handle or author>
+   published: <YYYY-MM-DD if visible>
+   fetched: <today>
+   fetched_via: playwright
+   ---
+   ```
+7. Save screenshots to `raw/web/<slug>/assets/` only if the user asks — they're large and rarely needed.
+8. In `inbox.md`, move the line to `## Processati` with `- [x] <url> → \`raw/web/<slug>/\` (<today>)`. Remove the `⚠` marker.
+9. Report to the user what was captured and ask whether to proceed to INGEST.
+
+**Out of scope for the fallback:** bypassing login walls, solving CAPTCHAs, scraping at volume. If any of these come up, stop and tell the user.
 
 ## Output contract
 
@@ -125,6 +154,7 @@ The agent reports this summary verbatim and asks the user whether to proceed wit
 ## Not in scope
 
 - Re-extraction when HTML source changes (no versioning; user re-fetches manually).
-- Authenticated scraping (cookies, API keys) — user downloads manually to `raw/papers/`.
+- Authenticated scraping inside the Python script (cookies, API keys) — user downloads manually, or uses the Playwright MCP fallback interactively.
 - Image OCR or figure extraction from PDFs.
 - Scheduling / cron — user or the agent's own scheduler decides when to run.
+- Unattended batch via Playwright — the fallback requires an interactive session with the agent (one confirmation per URL).

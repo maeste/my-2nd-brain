@@ -10,7 +10,7 @@
 # What it does:
 #   1. Creates folder structure (raw/, wiki/pages/, wiki/views/, ...)
 #   2. Installs the two skills (inbox-fetcher, vault-linter, view-builder)
-#   3. Installs three slash commands (/save, /view, /reflect)
+#   3. Installs four slash commands (/save, /view, /reflect, /forget)
 #   4. Writes CLAUDE.md, inbox.md, wiki/{hot,index,log}.md
 #   5. Creates AGENTS.md as a symlink to CLAUDE.md
 #   6. Optionally: git init, checks Python dependencies
@@ -296,7 +296,7 @@ fi
 
 # --- Slash commands --------------------------------------------------------
 info "Installing slash commands"
-for cmd in save view reflect; do
+for cmd in save view reflect forget; do
     if [ -f "$SCRIPT_DIR/commands/$cmd.md" ]; then
         cp "$SCRIPT_DIR/commands/$cmd.md" \
            "$VAULT_DIR/.claude/commands/$cmd.md"

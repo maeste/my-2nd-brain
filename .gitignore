@@ -1,0 +1,3 @@
+# Default vault path when init-vault.sh runs with no args.
+# The repo is the template, not a live vault.
+/second-brain-vault/

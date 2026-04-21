@@ -71,23 +71,24 @@ Views come in two flavors:
 
 ---
 
-## Six operations
+## Seven operations
 
-The agent knows how to do six things. You trigger them in plain
+The agent knows how to do seven things. You trigger them in plain
 language or with a slash command.
 
 | # | Operation | How to trigger | What happens |
 |---|---|---|---|
 | 1 | **FETCH** | *"process the inbox"* | URLs in `inbox.md` → `raw/web/` |
 | 2 | **INGEST** | *"ingest the new content"* | `raw/` → summaries in `wiki/sources/`, links in `wiki/pages/` |
-| 3 | **QUERY** | any question | Agent reads the wiki, answers with citations |
-| 4 | **VIEW** | `/view timeline agent-skills` or *"make a timeline of X"* | Build a view in `wiki/views/` |
-| 5 | **REFLECT** | `/reflect` or *"reflect on my vault"* | Writes `wiki/compass.md` with trajectory + blind spots |
-| 6 | **LINT** | `/lint` or automatic after 5 ingests / 7 days | Deterministic checks, report in `.lint/` |
+| 3 | **FORGET** | `/forget <source>` or *"forget source X"* | Cascade-remove a source, clean citations in pages and views |
+| 4 | **QUERY** | any question | Agent reads the wiki, answers with citations |
+| 5 | **VIEW** | `/view timeline agent-skills` or *"make a timeline of X"* | Build a view in `wiki/views/` |
+| 6 | **REFLECT** | `/reflect` or *"reflect on my vault"* | Writes `wiki/compass.md` with trajectory + blind spots |
+| 7 | **LINT** | `/lint` or automatic after 5 ingests / 7 days | Deterministic checks, report in `.lint/` |
 
 ---
 
-## Three slash commands
+## Four slash commands
 
 - **`/save [name]`** — save the current conversation to
   `conversations/`. These feed `/reflect` later.
@@ -95,6 +96,8 @@ language or with a slash command.
   `comparison`, `concept-map`, `chart`, `slides`, `report`, `post`.
 - **`/reflect`** — write `compass.md`: where my thinking is going,
   what I'm not looking at, one question worth sitting with.
+- **`/forget <source>`** — cascade-remove a source. Interactive:
+  per-claim decisions, never deletes prose without asking.
 
 For everything else, just ask in plain language.
 

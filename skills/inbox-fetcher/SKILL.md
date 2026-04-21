@@ -1,6 +1,6 @@
 ---
 name: inbox-fetcher
-description: Processes a queue of URLs listed in inbox.md for a second brain vault, downloading each page as clean markdown in raw/web/<slug>/index.md with images in an assets/ subdirectory. Use this skill whenever the user mentions "inbox", "fetch", "process links", "scrape URLs", "download articles", or adds URLs to inbox.md. Run this BEFORE any ingest operation so the agent has clean raw files to work from. Handles HTML articles via trafilatura, direct PDF downloads, and per-URL failures (paywalls, JS-rendered pages, timeouts) gracefully without blocking the rest of the queue. Walled domains (X/Twitter, LinkedIn, Threads, Facebook, Instagram) are flagged for an agent-driven Playwright MCP fallback instead of being attempted with trafilatura.
+description: Processes a queue of URLs listed in inbox.md for a second brain vault, downloading each page as clean markdown in raw/web/<slug>/index.md with images in an assets/ subdirectory. Use this skill whenever the user mentions "inbox", "fetch", "process links", "scrape URLs", "download articles", or adds URLs to inbox.md. Run this BEFORE any ingest operation so the agent has clean raw files to work from. Handles HTML articles via trafilatura, direct PDF downloads, and per-URL failures (paywalls, JS-rendered pages, timeouts) gracefully without blocking the rest of the queue. Walled domains (X/Twitter, LinkedIn, Threads, Facebook, Instagram) are flagged for an agent-driven Playwright MCP fallback instead of being attempted with trafilatura. Arxiv abstract/html URLs are rewritten to the PDF endpoint so the paper itself is archived, not the landing page.
 ---
 
 # Inbox Fetcher
@@ -84,12 +84,13 @@ The script is idempotent: already-processed URLs (marked `[x]`) are skipped. To 
 
 ## What the script does per URL
 
-1. **PDF detection.** If the URL path ends in `.pdf` or the server returns `Content-Type: application/pdf`, download as-is to `raw/papers/<slug>.pdf`.
-2. **HTML extraction.** Otherwise, use `trafilatura` to fetch and extract clean markdown with metadata (title, author, publish date, language).
-3. **Slug generation.** Prefer the article title, fallback to `<hostname>-<hash8>`.
-4. **Image download.** Parse `![alt](url)` patterns, download each image into `raw/web/<slug>/assets/` with a hash-based filename, rewrite paths to local.
-5. **Frontmatter.** Prepend YAML with `source_url`, `title`, `author`, `fetched`, `language`.
-6. **Inbox update.** On success, move to "Processed". On failure, append ⚠ with reason.
+1. **URL rewriting (pre-fetch).** Certain URLs are rewritten to reach the actual content instead of a landing page. Today: arxiv — any `arxiv.org/abs/<id>`, `arxiv.org/html/<id>`, or `arxiv.org/pdf/<id>` (with or without `.pdf`, with or without a `vN` version suffix) is rewritten to `arxiv.org/pdf/<id>.pdf` so we archive the paper itself. The slug becomes `arxiv-<id>` verbatim (no slugify — preserves the canonical ID). The inbox line still tracks the URL you wrote.
+2. **PDF detection.** If the (rewritten) URL path ends in `.pdf` or the server returns `Content-Type: application/pdf`, download as-is to `raw/papers/<slug>.pdf`.
+3. **HTML extraction.** Otherwise, use `trafilatura` to fetch and extract clean markdown with metadata (title, author, publish date, language).
+4. **Slug generation.** For rewritten URLs, use the override slug (e.g. `arxiv-2405.12345`). Otherwise prefer the article title, fallback to `<hostname>-<hash8>`.
+5. **Image download.** Parse `![alt](url)` patterns, download each image into `raw/web/<slug>/assets/` with a hash-based filename, rewrite paths to local.
+6. **Frontmatter.** Prepend YAML with `source_url`, `title`, `author`, `fetched`, `language`.
+7. **Inbox update.** On success, move to "Processed". On failure, append ⚠ with reason.
 
 ## Dependencies
 

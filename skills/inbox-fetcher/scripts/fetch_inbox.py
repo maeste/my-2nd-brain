@@ -132,6 +132,27 @@ def is_walled(url: str) -> bool:
     return host in WALLED_DOMAINS
 
 
+def rewrite_url_for_fetch(url: str) -> tuple[str, str | None]:
+    """Rewrite a user-supplied URL into a better fetch target.
+
+    Returns (fetch_url, slug_override). When slug_override is non-None
+    it is used as the raw-file slug verbatim (bypassing slugify) so
+    canonical identifiers like arxiv paper IDs survive intact.
+
+    Arxiv abstract and HTML URLs are rewritten to the PDF endpoint so
+    we archive the paper itself instead of the landing page.
+    """
+    parsed = urlparse(url)
+    host = parsed.netloc.lower().removeprefix("www.")
+    if host in ("arxiv.org", "export.arxiv.org"):
+        m = re.match(r"^/(?:abs|html|pdf)/(.+?)(?:\.pdf)?$", parsed.path)
+        if m:
+            paper_id = m.group(1)
+            slug = f"arxiv-{paper_id.replace('/', '-')}"
+            return f"https://arxiv.org/pdf/{paper_id}.pdf", slug
+    return url, None
+
+
 def slug_from(url: str, title: str | None) -> str:
     """Generate a filesystem-safe slug, preferring the title."""
     if title and title.strip():
@@ -143,7 +164,8 @@ def slug_from(url: str, title: str | None) -> str:
     return f"{slugify(host)}-{h}"
 
 
-def fetch_pdf(url: str, papers_dir: Path) -> FetchResult:
+def fetch_pdf(url: str, papers_dir: Path,
+              slug_override: str | None = None) -> FetchResult:
     """Download a PDF directly to raw/papers/."""
     try:
         r = requests.get(
@@ -161,7 +183,7 @@ def fetch_pdf(url: str, papers_dir: Path) -> FetchResult:
     if size > MAX_PDF_SIZE_MB * 1024 * 1024:
         print(f"  ⚠ large PDF ({size // 1024 // 1024} MB): {url}")
 
-    slug = slug_from(url, None)
+    slug = slug_override or slug_from(url, None)
     out_path = papers_dir / f"{slug}.pdf"
     papers_dir.mkdir(parents=True, exist_ok=True)
 
@@ -348,17 +370,26 @@ def process_vault(vault: Path, dry_run: bool = False) -> int:
 
     results: list[FetchResult] = []
     for e in entries:
-        print(f"\n→ {e.url}")
-        if is_pdf_url(e.url):
-            r = fetch_pdf(e.url, papers_dir)
-        elif is_walled(e.url):
-            host = urlparse(e.url).netloc.lower()
+        fetch_url, slug_override = rewrite_url_for_fetch(e.url)
+        if fetch_url != e.url:
+            print(f"\n→ {e.url}\n  (fetching as → {fetch_url})")
+        else:
+            print(f"\n→ {e.url}")
+
+        if is_pdf_url(fetch_url):
+            r = fetch_pdf(fetch_url, papers_dir, slug_override=slug_override)
+        elif is_walled(fetch_url):
+            host = urlparse(fetch_url).netloc.lower()
             r = FetchResult(
-                url=e.url, ok=False, kind="failed",
+                url=fetch_url, ok=False, kind="failed",
                 reason=f"walled domain ({host}) — {PLAYWRIGHT_HINT}",
             )
         else:
-            r = fetch_html(e.url, web_dir)
+            r = fetch_html(fetch_url, web_dir)
+
+        # Track by the original inbox URL, not the rewritten fetch URL,
+        # so update_inbox can match the line back.
+        r.url = e.url
         results.append(r)
         if r.ok:
             print(f"  ✓ {r.kind} → {r.out_path}")

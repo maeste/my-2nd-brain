@@ -54,6 +54,33 @@ Script is idempotent — safe to re-run.
 Then open Claude Code (or another CLI) in the vault and follow
 [GETTING-STARTED.md](GETTING-STARTED.md).
 
+### Updating an existing vault
+
+Re-running `init-vault.sh` against an existing vault is the update
+path. After `git pull` in this repo, re-run the script pointing at
+your vault:
+
+```bash
+./init-vault.sh ~/knowledge/X   # or --here, or default path
+```
+
+What happens on re-run:
+
+- **Always refreshed** — `skills/` and `commands/`. This is the
+  whole point of the update: new operations, fixes, and slash
+  commands land in the vault.
+- **Prompts you** — `CLAUDE.md`. Default is *keep* (answer `y` to
+  overwrite with the latest template). Say yes unless you've
+  customized the contract locally.
+- **Created only if missing** — `inbox.md`, `wiki/index.md`,
+  `wiki/log.md`, `wiki/hot.md`, `.lint/state.yaml`, `.gitignore`.
+- **Never touched** — `raw/`, `wiki/pages/`, `wiki/sources/`,
+  `wiki/views/`, `conversations/`, `wiki/compass.md`. Your
+  knowledge and ongoing work are safe.
+
+No separate `update-vault.sh` exists because `init-vault.sh` already
+does the right thing.
+
 ---
 
 ## The core idea, in one paragraph
